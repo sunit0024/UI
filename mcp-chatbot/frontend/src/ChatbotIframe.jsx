@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, X, Settings, Minimize2 } from 'lucide-react';
+import { Send, Bot, User, X, Settings, Minimize2, Download, ExternalLink } from 'lucide-react';
 
 const Chatbot = ({
   // API Configuration
@@ -75,6 +75,68 @@ const Chatbot = ({
     'bottom-left': { bottom: '20px', left: '20px' },
     'top-right': { top: '20px', right: '20px' },
     'top-left': { top: '20px', left: '20px' }
+  };
+
+  // Function to parse and format message text with links
+  const formatMessageWithLinks = (text) => {
+    // URL regex pattern
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    
+    // Check if the message contains download/file keywords
+    const isDownloadLink = text.toLowerCase().includes('download') || 
+                          text.toLowerCase().includes('file') || 
+                          text.toLowerCase().includes('excel') ||
+                          text.toLowerCase().includes('csv') ||
+                          text.toLowerCase().includes('report');
+    
+    // Split text by URLs
+    const parts = text.split(urlRegex);
+    
+    return parts.map((part, index) => {
+      // Check if this part is a URL
+      if (part.match(urlRegex)) {
+        // Determine link text based on context
+        let linkText = 'Link';
+        if (isDownloadLink) {
+          linkText = 'Download File';
+        } else if (part.includes('report')) {
+          linkText = 'View Report';
+        } else if (part.includes('document')) {
+          linkText = 'Open Document';
+        }
+        
+        return (
+          <a
+            key={index}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: '#0066cc',
+              textDecoration: 'underline',
+              fontWeight: 'bold',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              cursor: 'pointer'
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#0052a3';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = '#0066cc';
+            }}
+          >
+            {isDownloadLink ? <Download size={14} /> : <ExternalLink size={14} />}
+            {linkText}
+          </a>
+        );
+      }
+      return <span key={index}>{part}</span>;
+    });
   };
 
   // Auto-scroll
@@ -460,9 +522,10 @@ const Chatbot = ({
                         color: message.sender === 'user' ? '#ffffff' : currentTheme.text,
                         boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
                         wordWrap: 'break-word',
-                        whiteSpace: 'pre-wrap'
+                        whiteSpace: 'pre-wrap',
+                        lineHeight: '1.5'
                       }}>
-                        {message.text}
+                        {message.sender === 'bot' ? formatMessageWithLinks(message.text) : message.text}
                       </div>
                     </div>
                   </div>
