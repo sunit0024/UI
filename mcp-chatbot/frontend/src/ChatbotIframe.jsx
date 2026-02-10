@@ -1,5 +1,126 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, X, Settings, Minimize2, Download, ExternalLink } from 'lucide-react';
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell,
+  LineChart, Line
+} from 'recharts';
+
+// ── Chart color palette ──
+const CHART_COLORS = ['#4F46E5', '#06B6D4', '#F59E0B', '#EF4444', '#10B981', '#8B5CF6', '#EC4899', '#14B8A6'];
+
+// ── Chart Renderer Component ──
+const ChartRenderer = ({ chart }) => {
+  if (!chart || !chart.data || chart.data.length === 0) return null;
+
+  const containerStyle = {
+    width: '100%',
+    marginTop: '12px',
+    padding: '16px',
+    backgroundColor: '#f9fafb',
+    borderRadius: '10px',
+    border: '1px solid #e5e7eb',
+  };
+
+  const titleStyle = {
+    fontSize: '13px',
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: '12px',
+    textAlign: 'center',
+  };
+
+  const renderChart = () => {
+    switch (chart.type) {
+      case 'bar': {
+        const bars = chart.bars || [{ dataKey: 'value', color: CHART_COLORS[0] }];
+        return (
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={chart.data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey={chart.xKey || 'name'} tick={{ fontSize: 11, fill: '#6b7280' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
+              <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '12px' }} />
+              {bars.length > 1 && <Legend wrapperStyle={{ fontSize: '11px' }} />}
+              {bars.map((bar, idx) => (
+                <Bar
+                  key={bar.dataKey}
+                  dataKey={bar.dataKey}
+                  fill={bar.color || CHART_COLORS[idx % CHART_COLORS.length]}
+                  radius={[4, 4, 0, 0]}
+                  name={bar.label || bar.dataKey}
+                />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        );
+      }
+
+      case 'pie': {
+        const dataKey = chart.dataKey || 'value';
+        const nameKey = chart.nameKey || 'name';
+        return (
+          <ResponsiveContainer width="100%" height={250}>
+            <PieChart>
+              <Pie
+                data={chart.data}
+                cx="50%"
+                cy="50%"
+                innerRadius={50}
+                outerRadius={90}
+                dataKey={dataKey}
+                nameKey={nameKey}
+                label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                labelLine={{ strokeWidth: 1 }}
+              >
+                {chart.data.map((_, idx) => (
+                  <Cell key={idx} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '12px' }} />
+            </PieChart>
+          </ResponsiveContainer>
+        );
+      }
+
+      case 'line': {
+        const lines = chart.lines || [{ dataKey: 'value', color: CHART_COLORS[0] }];
+        return (
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={chart.data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey={chart.xKey || 'name'} tick={{ fontSize: 11, fill: '#6b7280' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} />
+              <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid #e5e7eb', fontSize: '12px' }} />
+              {lines.length > 1 && <Legend wrapperStyle={{ fontSize: '11px' }} />}
+              {lines.map((line, idx) => (
+                <Line
+                  key={line.dataKey}
+                  type="monotone"
+                  dataKey={line.dataKey}
+                  stroke={line.color || CHART_COLORS[idx % CHART_COLORS.length]}
+                  strokeWidth={2}
+                  dot={{ r: 4 }}
+                  name={line.label || line.dataKey}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        );
+      }
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div style={containerStyle}>
+      {chart.title && <div style={titleStyle}>{chart.title}</div>}
+      {renderChart()}
+    </div>
+  );
+};
 
 const Chatbot = ({
   // API Configuration
@@ -40,7 +161,7 @@ const Chatbot = ({
   const [isOpen, setIsOpen] = useState(autoOpen);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState([
-    { id: 1, text: welcomeMessage, sender: 'bot', timestamp: new Date() }
+    { id: 1, text: welcomeMessage, sender: 'bot', timestamp: new Date(), charts: [] }
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -226,7 +347,8 @@ const Chatbot = ({
       return {
         message: data.message,
         toolCallsCount: data.tool_calls_count || 0,
-        toolsUsed: data.tools_used || []
+        toolsUsed: data.tools_used || [],
+        charts: data.charts || []  // NEW: pass charts from API response
       };
     } catch (error) {
       console.error('API call failed:', error);
@@ -242,7 +364,8 @@ const Chatbot = ({
       id: Date.now(),
       text: userMessage,
       sender: 'user',
-      timestamp: new Date()
+      timestamp: new Date(),
+      charts: []
     };
 
     setMessages(prev => {
@@ -273,7 +396,8 @@ const Chatbot = ({
         text: botMessageText,
         sender: 'bot',
         timestamp: new Date(),
-        toolsUsed: result.toolsUsed
+        toolsUsed: result.toolsUsed,
+        charts: result.charts || []  // NEW: attach charts to the message
       };
 
       setMessages(prev => {
@@ -291,7 +415,8 @@ const Chatbot = ({
         id: Date.now() + 1,
         text: 'Sorry, I encountered an error. Please try again. Make sure the MCP service is running on port 8000.',
         sender: 'bot',
-        timestamp: new Date()
+        timestamp: new Date(),
+        charts: []
       };
 
       setMessages(prev => [...prev, errorMessage]);
@@ -321,7 +446,7 @@ const Chatbot = ({
 
   const clearMessages = () => {
     setMessages([
-      { id: 1, text: welcomeMessage, sender: 'bot', timestamp: new Date() }
+      { id: 1, text: welcomeMessage, sender: 'bot', timestamp: new Date(), charts: [] }
     ]);
     setSessionId(null);
     setToolsUsed([]);
@@ -508,7 +633,7 @@ const Chatbot = ({
                     </div>
 
                     <div style={{
-                      maxWidth: '70%',
+                      maxWidth: '75%',
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '4px'
@@ -527,6 +652,15 @@ const Chatbot = ({
                       }}>
                         {message.sender === 'bot' ? formatMessageWithLinks(message.text) : message.text}
                       </div>
+
+                      {/* NEW: Render charts below the bot message bubble */}
+                      {message.sender === 'bot' && message.charts && message.charts.length > 0 && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {message.charts.map((chart, chartIdx) => (
+                            <ChartRenderer key={chartIdx} chart={chart} />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
